@@ -128,6 +128,11 @@ PoseTrackingStatusCode PoseTracking::moveToPose(const Eigen::Vector3d& positiona
 
     // Compute servo command from PID controller output and send it to the Servo object, for execution
     twist_stamped_pub_.publish(calculateTwistCommand());
+
+    if (!loop_rate_.sleep())
+    {
+      ROS_WARN_STREAM_THROTTLE_NAMED(1, LOGNAME, "Target control rate was missed");
+    }
   }
 
   doPostMotionReset();
@@ -238,6 +243,9 @@ void PoseTracking::targetPoseCallback(const geometry_msgs::PoseStampedConstPtr& 
       geometry_msgs::TransformStamped target_to_planning_frame = transform_buffer_.lookupTransform(
           planning_frame_, target_pose_.header.frame_id, ros::Time(0), ros::Duration(0.1));
       tf2::doTransform(target_pose_, target_pose_, target_to_planning_frame);
+
+      // Prevent doTransform from copying a stamp of 0, which will cause the haveRecentTargetPose check to fail servo motions
+      target_pose_.header.stamp = ros::Time::now();
     }
     catch (const tf2::TransformException& ex)
     {
